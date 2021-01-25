@@ -6,6 +6,9 @@ use core::future;
 use engine::Engine;
 use futures::executor::block_on;
 
+const WINDOW_WIDTH: u32 = 800;
+const WINDOW_HEIGHT: u32 = 600;
+
 fn main() {
     let event_loop = winit::event_loop::EventLoop::new();
     let window = winit::window::WindowBuilder::new()
