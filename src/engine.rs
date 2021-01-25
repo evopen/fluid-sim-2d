@@ -1,4 +1,4 @@
-use vk_shader_macros::include_glsl;
+use shaderc::ShaderKind;
 use wgpu::{BindGroupLayoutDescriptor, PipelineLayoutDescriptor, RenderPipelineDescriptor};
 
 use crate::solver::Solver;
@@ -8,6 +8,7 @@ pub struct Engine {
     swap_chain: wgpu::SwapChain,
     rt: tokio::runtime::Runtime,
     sph_solver: Solver,
+    pipeline: wgpu::RenderPipeline,
 }
 
 impl Engine {
@@ -44,27 +45,46 @@ impl Engine {
         };
         let swap_chain = device.create_swap_chain(&surface, &swap_chain_desc);
 
-        let vertex_shader = include_glsl!(tokens)
+        let mut compiler = shaderc::Compiler::new().unwrap();
+        let spirv = compiler
+            .compile_into_spirv(
+                include_str!("shader/shader.vert"),
+                shaderc::ShaderKind::Vertex,
+                "shader.vert",
+                "main",
+                None,
+            )
+            .unwrap();
+
+        let vertex_stage =
+            device.create_shader_module(wgpu::util::make_spirv(spirv.as_binary_u8()));
+
+        let pipeline_layout = device.create_pipeline_layout(&PipelineLayoutDescriptor {
+            label: Some("Main Pipeline Layout"),
+            bind_group_layouts: &[],
+            push_constant_ranges: &[],
+        });
 
         let pipeline = device.create_render_pipeline(&RenderPipelineDescriptor {
             label: Some("Main Pipeline"),
-            layout: None,
-            vertex_stage: (),
+            layout: Some(&pipeline_layout),
+            vertex_stage: wgpu::ProgrammableStageDescriptor {
+                module: &vertex_stage,
+                entry_point: "main",
+            },
             fragment_stage: None,
             rasterization_state: None,
             primitive_topology: wgpu::PrimitiveTopology::PointList,
-            color_states: wgpu::ColorStateDescriptor{
+            color_states: &[wgpu::ColorStateDescriptor {
                 format: wgpu::TextureFormat::Rgba8UnormSrgb,
-                alpha_blend: ,
-                color_blend: (),
-                write_mask: (),
-                
-            },
-            depth_stencil_state: (),
-            vertex_state: wgpu::VertexStateDescriptor{
-                index_format: (),
-                vertex_buffers: (),
-                
+                alpha_blend: wgpu::BlendDescriptor::REPLACE,
+                color_blend: wgpu::BlendDescriptor::REPLACE,
+                write_mask: wgpu::ColorWrite::ALL,
+            }],
+            depth_stencil_state: None,
+            vertex_state: wgpu::VertexStateDescriptor {
+                index_format: wgpu::IndexFormat::Uint16,
+                vertex_buffers: &[],
             },
             sample_count: 1,
             sample_mask: !0,
@@ -84,6 +104,7 @@ impl Engine {
             swap_chain,
             rt,
             sph_solver,
+            pipeline,
         }
     }
 

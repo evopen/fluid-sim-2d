@@ -328,8 +328,8 @@ version = "0.1.0"
 dependencies = [
  "futures",
  "glam",
+ "shaderc",
  "tokio",
- "vk-shader-macros",
  "wgpu",
  "winit",
 ]
@@ -1183,9 +1183,9 @@ checksum = "974ef1bd2ad8a507599b336595454081ff68a9599b4890af7643c0c0ed73a62c"
 
 [[package]]
 name = "shaderc"
-version = "0.6.3"
+version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "50b8aeaae10b9bda5cba66736a7e265f67698e912e1cc6a4678acba286e22be9"
+checksum = "03f0cb8d1f8667fc9c50d5054be830a117af5f9a15f87c66b72bbca0c2fca484"
 dependencies = [
  "libc",
  "shaderc-sys",
@@ -1193,9 +1193,9 @@ dependencies = [
 
 [[package]]
 name = "shaderc-sys"
-version = "0.6.3"
+version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5b12d7c62d6732884c9dfab587503fa3a795b108df152415a89da23812d4737e"
+checksum = "c89175f80244b82f882033a81bd188f87307c4c39b2fe8d0f194314f270bdea9"
 dependencies = [
  "cmake",
  "libc",
@@ -1394,29 +1394,6 @@ name = "version_check"
 version = "0.9.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b5a972e5669d67ba988ce3dc826706fb0a8b01471c088cb0b6110b805cc36aed"
-
-[[package]]
-name = "vk-shader-macros"
-version = "0.2.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0b5028e27627090b995b6e473d8391fadb4c0b69973ae5375fd5533336fdf201"
-dependencies = [
- "proc-macro-hack",
- "vk-shader-macros-impl",
-]
-
-[[package]]
-name = "vk-shader-macros-impl"
-version = "0.2.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1af8b2b88833e89a5b11e425b85ffff5a79425abc0a9356b49feb5a272be119d"
-dependencies = [
- "proc-macro-hack",
- "proc-macro2",
- "quote",
- "shaderc",
- "syn",
-]
 
 [[package]]
 name = "walkdir"
