@@ -51,7 +51,6 @@ pub struct Solver {
 impl Solver {
     pub fn new(count: u32) -> Self {
         let mut particles = Vec::with_capacity(count as usize);
-        println!("initialize dam break with {} particles", count);
 
         for y in std::iter::successors(Some(H), |y| Some(y + H - 0.01))
             .take_while(|y| y < &(VIEW_HEIGHT - 2.0 * H))
@@ -65,6 +64,7 @@ impl Solver {
                 particles.push(Particle::new(Vec2::new(x, y)));
             }
         }
+        println!("initialize dam break with {} particles", particles.len());
 
         Self { particles }
     }
@@ -108,7 +108,9 @@ impl Solver {
                         fvisc += VISC * MASS * (pj.v - pi.v) / pj.rho * *VISC_LAP * (H - r);
                     }
                 }
+
                 let fgrav = G * pi.rho;
+
                 pi.f = fgrav + fpress + fvisc;
             });
     }
