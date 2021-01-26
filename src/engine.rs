@@ -109,7 +109,7 @@ impl Engine {
             .build()
             .unwrap();
 
-        let sph_solver = Solver::new(500, 16.0);
+        let sph_solver = Solver::new(500);
 
         let particle_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Particle buffer"),

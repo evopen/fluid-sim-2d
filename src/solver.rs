@@ -23,6 +23,7 @@ const VISC_LAP: Lazy<f32> = Lazy::new(|| 45.0 / (std::f32::consts::PI * H.powi(6
 const VISC: f32 = 250.0;
 const G: Vec2 = glam::const_vec2!([0.0, 12000.0 * -9.8]);
 const DT: f32 = 0.0008;
+const BOUND_DAMPING: f32 = -0.5;
 
 #[repr(C)]
 #[derive(Debug, Default, Pod, Zeroable, Clone, Copy)]
@@ -48,16 +49,19 @@ pub struct Solver {
 }
 
 impl Solver {
-    pub fn new(count: u32, radius: f32) -> Self {
+    pub fn new(count: u32) -> Self {
         let mut particles = Vec::with_capacity(count as usize);
         println!("initialize dam break with {} particles", count);
 
-        for y in std::iter::successors(Some(radius), |y| Some(y + radius))
-            .take_while(|y| y < &(VIEW_HEIGHT - radius * 2.0))
+        for y in std::iter::successors(Some(H), |y| Some(y + H - 0.01))
+            .take_while(|y| y < &(VIEW_HEIGHT - 2.0 * H))
         {
-            for x in std::iter::successors(Some(VIEW_WIDTH / 4.0), |x| Some(x + radius))
+            for x in std::iter::successors(Some(VIEW_WIDTH / 4.0), |x| Some(x + H - 0.01))
                 .take_while(|x| x < &(VIEW_WIDTH / 2.0))
             {
+                if particles.len() >= count as usize {
+                    break;
+                }
                 particles.push(Particle::new(Vec2::new(x, y)));
             }
         }
@@ -87,21 +91,25 @@ impl Solver {
             .for_each(|(i, pi)| {
                 let mut fpress = Vec2::new(0.0, 0.0);
                 let mut fvisc = Vec2::new(0.0, 0.0);
+
                 for (j, pj) in particles_cache.iter().enumerate() {
                     if j.eq(&i) {
                         continue;
                     }
-                    let rij: Vec2 = pi.pos - pj.pos;
+                    let rij: Vec2 = pj.pos - pi.pos;
+
                     let r = pi.pos.distance(pj.pos);
+
                     if r < H {
                         fpress += -rij.normalize() * MASS * (pi.p + pj.p) / (2.0 * pj.rho)
                             * *SPIKY_GRAD
                             * (H - r).powi(2);
-                        fvisc += VISC * MASS * (pi.v - pj.v) / pj.rho * *VISC_LAP * (H - r);
+
+                        fvisc += VISC * MASS * (pj.v - pi.v) / pj.rho * *VISC_LAP * (H - r);
                     }
-                    let fgrav = G * pi.rho;
-                    pi.f = fgrav + fpress + fvisc;
                 }
+                let fgrav = G * pi.rho;
+                pi.f = fgrav + fpress + fvisc;
             });
     }
 
@@ -109,6 +117,23 @@ impl Solver {
         self.particles.par_iter_mut().for_each(|p| {
             p.v += DT * p.f / p.rho;
             p.pos += DT * p.v;
+
+            if p.pos.x - H < 0.0 {
+                p.v.x *= BOUND_DAMPING;
+                p.pos.x = H;
+            }
+            if p.pos.x + H > VIEW_WIDTH {
+                p.v.x *= BOUND_DAMPING;
+                p.pos.x = VIEW_WIDTH - H;
+            }
+            if p.pos.y - H < 0.0 {
+                p.v.y *= BOUND_DAMPING;
+                p.pos.y = H;
+            }
+            if p.pos.y + H > VIEW_HEIGHT {
+                p.v.y *= BOUND_DAMPING;
+                p.pos.y = VIEW_HEIGHT - H;
+            }
         });
     }
 
