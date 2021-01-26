@@ -47,7 +47,9 @@ fn main() {
                     engine.update();
                     engine.render();
                 }
-                winit::event::Event::RedrawEventsCleared => {}
+                winit::event::Event::RedrawEventsCleared => {
+                    window.request_redraw();
+                }
                 winit::event::Event::LoopDestroyed => {}
             }
         });

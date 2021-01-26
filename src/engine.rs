@@ -1,7 +1,12 @@
+use bytemuck::cast_slice;
 use shaderc::ShaderKind;
-use wgpu::{BindGroupLayoutDescriptor, PipelineLayoutDescriptor, RenderPipelineDescriptor};
+use wgpu::{
+    util::DeviceExt, BindGroupLayoutDescriptor, CommandEncoder, CommandEncoderDescriptor,
+    PipelineLayoutDescriptor, RenderPassColorAttachmentDescriptor, RenderPassDescriptor,
+    RenderPipelineDescriptor,
+};
 
-use crate::solver::Solver;
+use crate::solver::{self, Solver};
 
 pub struct Engine {
     window_size: winit::dpi::PhysicalSize<u32>,
@@ -9,6 +14,9 @@ pub struct Engine {
     rt: tokio::runtime::Runtime,
     sph_solver: Solver,
     pipeline: wgpu::RenderPipeline,
+    device: wgpu::Device,
+    queue: wgpu::Queue,
+    particle_buffer: wgpu::Buffer,
 }
 
 impl Engine {
@@ -24,6 +32,7 @@ impl Engine {
             })
             .await
             .unwrap();
+
         let (device, queue) = adapter
             .request_device(
                 &wgpu::DeviceDescriptor {
@@ -46,10 +55,20 @@ impl Engine {
         let swap_chain = device.create_swap_chain(&surface, &swap_chain_desc);
 
         let mut compiler = shaderc::Compiler::new().unwrap();
-        let spirv = compiler
+        let vert_spirv = compiler
             .compile_into_spirv(
                 include_str!("shader/shader.vert"),
-                shaderc::ShaderKind::Vertex,
+                shaderc::ShaderKind::InferFromSource,
+                "shader.vert",
+                "main",
+                None,
+            )
+            .unwrap();
+
+        let frag_spirv = compiler
+            .compile_into_spirv(
+                include_str!("shader/shader.frag"),
+                shaderc::ShaderKind::InferFromSource,
                 "shader.vert",
                 "main",
                 None,
@@ -57,7 +76,9 @@ impl Engine {
             .unwrap();
 
         let vertex_stage =
-            device.create_shader_module(wgpu::util::make_spirv(spirv.as_binary_u8()));
+            device.create_shader_module(wgpu::util::make_spirv(vert_spirv.as_binary_u8()));
+        let frag_stage =
+            device.create_shader_module(wgpu::util::make_spirv(frag_spirv.as_binary_u8()));
 
         let pipeline_layout = device.create_pipeline_layout(&PipelineLayoutDescriptor {
             label: Some("Main Pipeline Layout"),
@@ -72,11 +93,21 @@ impl Engine {
                 module: &vertex_stage,
                 entry_point: "main",
             },
-            fragment_stage: None,
-            rasterization_state: None,
+            fragment_stage: Some(wgpu::ProgrammableStageDescriptor {
+                module: &frag_stage,
+                entry_point: "main",
+            }),
+            rasterization_state: Some(wgpu::RasterizationStateDescriptor {
+                front_face: wgpu::FrontFace::Ccw,
+                cull_mode: wgpu::CullMode::None,
+                clamp_depth: false,
+                depth_bias: 0,
+                depth_bias_slope_scale: 0.0,
+                depth_bias_clamp: 0.0,
+            }),
             primitive_topology: wgpu::PrimitiveTopology::PointList,
             color_states: &[wgpu::ColorStateDescriptor {
-                format: wgpu::TextureFormat::Rgba8UnormSrgb,
+                format: wgpu::TextureFormat::Bgra8UnormSrgb,
                 alpha_blend: wgpu::BlendDescriptor::REPLACE,
                 color_blend: wgpu::BlendDescriptor::REPLACE,
                 write_mask: wgpu::ColorWrite::ALL,
@@ -84,7 +115,11 @@ impl Engine {
             depth_stencil_state: None,
             vertex_state: wgpu::VertexStateDescriptor {
                 index_format: wgpu::IndexFormat::Uint16,
-                vertex_buffers: &[],
+                vertex_buffers: &[wgpu::VertexBufferDescriptor {
+                    stride: std::mem::size_of::<solver::Particle>() as u64,
+                    step_mode: wgpu::InputStepMode::Vertex,
+                    attributes: &wgpu::vertex_attr_array![ 0 => Float2 ],
+                }],
             },
             sample_count: 1,
             sample_mask: !0,
@@ -99,12 +134,21 @@ impl Engine {
 
         let sph_solver = Solver::new(500, 16.0);
 
+        let particle_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Particle buffer"),
+            contents: bytemuck::cast_slice(&sph_solver.particles),
+            usage: wgpu::BufferUsage::VERTEX | wgpu::BufferUsage::COPY_DST,
+        });
+
         Self {
             window_size,
             swap_chain,
             rt,
             sph_solver,
             pipeline,
+            device,
+            queue,
+            particle_buffer,
         }
     }
 
@@ -112,5 +156,30 @@ impl Engine {
 
     pub fn render(&mut self) {
         let frame = self.swap_chain.get_current_frame().unwrap().output;
+        let mut encoder = self
+            .device
+            .create_command_encoder(&CommandEncoderDescriptor {
+                label: Some("Main Encoder"),
+            });
+
+        {
+            let mut render_pass = encoder.begin_render_pass(&RenderPassDescriptor {
+                color_attachments: &[RenderPassColorAttachmentDescriptor {
+                    attachment: &frame.view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                        store: true,
+                    },
+                }],
+                depth_stencil_attachment: None,
+            });
+            render_pass.set_pipeline(&self.pipeline);
+            render_pass.set_vertex_buffer(0, self.particle_buffer.slice(..));
+            render_pass.draw(0..self.sph_solver.particles.len() as u32, 0..1);
+            dbg!(self.sph_solver.particles.len());
+        }
+
+        self.queue.submit(std::iter::once(encoder.finish()));
     }
 }

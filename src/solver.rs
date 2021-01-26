@@ -3,13 +3,16 @@ use std::iter::successors;
 use glam::Vec2;
 use glam::Vec3A as Vec3;
 
+use bytemuck::{Pod, Zeroable};
+
 use crate::{WINDOW_HEIGHT, WINDOW_WIDTH};
 
 const VIEW_WIDTH: f32 = WINDOW_WIDTH as f32 * 1.5;
 const VIEW_HEIGHT: f32 = WINDOW_HEIGHT as f32 * 1.5;
 
-#[derive(Debug, Default)]
-struct Particle {
+#[repr(C)]
+#[derive(Debug, Default, Pod, Zeroable, Clone, Copy)]
+pub struct Particle {
     pos: Vec2,
     v: Vec2,
     f: Vec2,
@@ -27,7 +30,7 @@ impl Particle {
 }
 
 pub struct Solver {
-    particles: Vec<Particle>,
+    pub particles: Vec<Particle>,
 }
 
 impl Solver {
