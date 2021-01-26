@@ -1,5 +1,3 @@
-use bytemuck::cast_slice;
-use shaderc::ShaderKind;
 use wgpu::{
     util::DeviceExt, BindGroupLayoutDescriptor, CommandEncoder, CommandEncoderDescriptor,
     PipelineLayoutDescriptor, RenderPassColorAttachmentDescriptor, RenderPassDescriptor,
@@ -54,31 +52,10 @@ impl Engine {
         };
         let swap_chain = device.create_swap_chain(&surface, &swap_chain_desc);
 
-        let mut compiler = shaderc::Compiler::new().unwrap();
-        let vert_spirv = compiler
-            .compile_into_spirv(
-                include_str!("shader/shader.vert"),
-                shaderc::ShaderKind::InferFromSource,
-                "shader.vert",
-                "main",
-                None,
-            )
-            .unwrap();
-
-        let frag_spirv = compiler
-            .compile_into_spirv(
-                include_str!("shader/shader.frag"),
-                shaderc::ShaderKind::InferFromSource,
-                "shader.vert",
-                "main",
-                None,
-            )
-            .unwrap();
-
         let vertex_stage =
-            device.create_shader_module(wgpu::util::make_spirv(vert_spirv.as_binary_u8()));
+            device.create_shader_module(wgpu::include_spirv!("shader/shader.vert.spv"));
         let frag_stage =
-            device.create_shader_module(wgpu::util::make_spirv(frag_spirv.as_binary_u8()));
+            device.create_shader_module(wgpu::include_spirv!("shader/shader.frag.spv"));
 
         let pipeline_layout = device.create_pipeline_layout(&PipelineLayoutDescriptor {
             label: Some("Main Pipeline Layout"),
@@ -177,7 +154,6 @@ impl Engine {
             render_pass.set_pipeline(&self.pipeline);
             render_pass.set_vertex_buffer(0, self.particle_buffer.slice(..));
             render_pass.draw(0..self.sph_solver.particles.len() as u32, 0..1);
-            dbg!(self.sph_solver.particles.len());
         }
 
         self.queue.submit(std::iter::once(encoder.finish()));
