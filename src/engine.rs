@@ -1,7 +1,7 @@
 use wgpu::{
-    util::DeviceExt, BindGroupLayoutDescriptor, CommandEncoder, CommandEncoderDescriptor,
-    PipelineLayoutDescriptor, RenderPassColorAttachmentDescriptor, RenderPassDescriptor,
-    RenderPipelineDescriptor,
+    util::{BufferInitDescriptor, DeviceExt},
+    BindGroupLayoutDescriptor, CommandEncoder, CommandEncoderDescriptor, PipelineLayoutDescriptor,
+    RenderPassColorAttachmentDescriptor, RenderPassDescriptor, RenderPipelineDescriptor,
 };
 
 use crate::solver::{self, Solver};
@@ -129,7 +129,9 @@ impl Engine {
         }
     }
 
-    pub fn update(&mut self) {}
+    pub fn update(&mut self) {
+        self.sph_solver.update();
+    }
 
     pub fn render(&mut self) {
         let frame = self.swap_chain.get_current_frame().unwrap().output;
@@ -138,6 +140,14 @@ impl Engine {
             .create_command_encoder(&CommandEncoderDescriptor {
                 label: Some("Main Encoder"),
             });
+        let tmp_buf = self.device.create_buffer_init(&BufferInitDescriptor {
+            label: Some("Temp Buffer"),
+            contents: bytemuck::cast_slice(&self.sph_solver.particles),
+            usage: wgpu::BufferUsage::COPY_SRC,
+        });
+
+        let size = std::mem::size_of_val(&*self.sph_solver.particles);
+        encoder.copy_buffer_to_buffer(&tmp_buf, 0, &self.particle_buffer, 0, size as u64);
 
         {
             let mut render_pass = encoder.begin_render_pass(&RenderPassDescriptor {

@@ -415,6 +415,7 @@ dependencies = [
  "futures",
  "glam",
  "glob",
+ "once_cell",
  "rayon",
  "shaderc",
  "tokio",

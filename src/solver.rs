@@ -1,4 +1,7 @@
-use std::iter::successors;
+use std::{iter::successors, ops::Deref};
+
+use once_cell::sync::Lazy;
+use rayon::prelude::*;
 
 use glam::Vec2;
 use glam::Vec3A as Vec3;
@@ -9,6 +12,17 @@ use crate::{WINDOW_HEIGHT, WINDOW_WIDTH};
 
 const VIEW_WIDTH: f32 = WINDOW_WIDTH as f32 * 1.5;
 const VIEW_HEIGHT: f32 = WINDOW_HEIGHT as f32 * 1.5;
+const REST_DENS: f32 = 1000.0;
+const H: f32 = 16.0;
+const HSQ: f32 = H * H;
+const MASS: f32 = 65.0;
+const GAS_CONST: f32 = 2000.0;
+const POLY6: Lazy<f32> = Lazy::new(|| 315.0 / (65.0 * std::f32::consts::PI * H.powi(9)));
+const SPIKY_GRAD: Lazy<f32> = Lazy::new(|| -45.0 / (std::f32::consts::PI * H.powi(6)));
+const VISC_LAP: Lazy<f32> = Lazy::new(|| 45.0 / (std::f32::consts::PI * H.powi(6)));
+const VISC: f32 = 250.0;
+const G: Vec2 = glam::const_vec2!([0.0, 12000.0 * -9.8]);
+const DT: f32 = 0.0008;
 
 #[repr(C)]
 #[derive(Debug, Default, Pod, Zeroable, Clone, Copy)]
@@ -51,13 +65,54 @@ impl Solver {
         Self { particles }
     }
 
-    pub fn integrate(&self) {}
+    fn compute_density_pressure(&mut self) {
+        let particles_cache = self.particles.clone();
+        self.particles.par_iter_mut().for_each(|pi| {
+            pi.rho = 0.0;
+            for pj in &particles_cache {
+                let r2 = pi.pos.distance_squared(pj.pos);
+                if r2 < HSQ {
+                    pi.rho += MASS * *POLY6 * (HSQ - r2).powi(3);
+                }
+            }
+            pi.p = GAS_CONST * (pi.rho - REST_DENS);
+        });
+    }
 
-    fn compute_density_pressure(&self) {}
+    fn compute_forces(&mut self) {
+        let particles_cache = self.particles.clone();
+        self.particles
+            .par_iter_mut()
+            .enumerate()
+            .for_each(|(i, pi)| {
+                let mut fpress = Vec2::new(0.0, 0.0);
+                let mut fvisc = Vec2::new(0.0, 0.0);
+                for (j, pj) in particles_cache.iter().enumerate() {
+                    if j.eq(&i) {
+                        continue;
+                    }
+                    let rij: Vec2 = pi.pos - pj.pos;
+                    let r = pi.pos.distance(pj.pos);
+                    if r < H {
+                        fpress += -rij.normalize() * MASS * (pi.p + pj.p) / (2.0 * pj.rho)
+                            * *SPIKY_GRAD
+                            * (H - r).powi(2);
+                        fvisc += VISC * MASS * (pi.v - pj.v) / pj.rho * *VISC_LAP * (H - r);
+                    }
+                    let fgrav = G * pi.rho;
+                    pi.f = fgrav + fpress + fvisc;
+                }
+            });
+    }
 
-    fn compute_forces(&self) {}
+    pub fn integrate(&mut self) {
+        self.particles.par_iter_mut().for_each(|p| {
+            p.v += DT * p.f / p.rho;
+            p.pos += DT * p.v;
+        });
+    }
 
-    pub fn update(&self) {
+    pub fn update(&mut self) {
         self.compute_density_pressure();
         self.compute_forces();
         self.integrate();
