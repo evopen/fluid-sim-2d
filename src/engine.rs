@@ -1,6 +1,5 @@
 use wgpu::{
-    util::{BufferInitDescriptor, DeviceExt},
-    BindGroupLayoutDescriptor, CommandEncoder, CommandEncoderDescriptor, PipelineLayoutDescriptor,
+    util::{BufferInitDescriptor, DeviceExt}, CommandEncoderDescriptor, PipelineLayoutDescriptor,
     RenderPassColorAttachmentDescriptor, RenderPassDescriptor, RenderPipelineDescriptor,
 };
 

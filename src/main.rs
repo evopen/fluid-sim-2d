@@ -1,10 +1,10 @@
 mod engine;
 mod solver;
 
-use core::future;
+
 
 use engine::Engine;
-use futures::executor::block_on;
+
 
 const WINDOW_WIDTH: u32 = 800;
 const WINDOW_HEIGHT: u32 = 600;
