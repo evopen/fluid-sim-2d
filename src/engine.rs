@@ -34,9 +34,9 @@ impl Engine {
         let (device, queue) = adapter
             .request_device(
                 &wgpu::DeviceDescriptor {
+                    label: None,
                     features: wgpu::Features::empty(),
                     limits: wgpu::Limits::default(),
-                    shader_validation: true,
                 },
                 None,
             )
@@ -44,7 +44,7 @@ impl Engine {
             .unwrap();
 
         let swap_chain_desc = wgpu::SwapChainDescriptor {
-            usage: wgpu::TextureUsage::OUTPUT_ATTACHMENT,
+            usage: wgpu::TextureUsage::RENDER_ATTACHMENT,
             format: wgpu::TextureFormat::Bgra8UnormSrgb,
             width: size.width,
             height: size.height,
@@ -53,9 +53,9 @@ impl Engine {
         let swap_chain = device.create_swap_chain(&surface, &swap_chain_desc);
 
         let vertex_stage =
-            device.create_shader_module(wgpu::include_spirv!("shader/shader.vert.spv"));
+            device.create_shader_module(&wgpu::include_spirv!("shader/shader.vert.spv"));
         let frag_stage =
-            device.create_shader_module(wgpu::include_spirv!("shader/shader.frag.spv"));
+            device.create_shader_module(&wgpu::include_spirv!("shader/shader.frag.spv"));
 
         let pipeline_layout = device.create_pipeline_layout(&PipelineLayoutDescriptor {
             label: Some("Main Pipeline Layout"),
@@ -66,41 +66,38 @@ impl Engine {
         let pipeline = device.create_render_pipeline(&RenderPipelineDescriptor {
             label: Some("Main Pipeline"),
             layout: Some(&pipeline_layout),
-            vertex_stage: wgpu::ProgrammableStageDescriptor {
+            vertex: wgpu::VertexState {
                 module: &vertex_stage,
                 entry_point: "main",
-            },
-            fragment_stage: Some(wgpu::ProgrammableStageDescriptor {
-                module: &frag_stage,
-                entry_point: "main",
-            }),
-            rasterization_state: Some(wgpu::RasterizationStateDescriptor {
-                front_face: wgpu::FrontFace::Ccw,
-                cull_mode: wgpu::CullMode::None,
-                clamp_depth: false,
-                depth_bias: 0,
-                depth_bias_slope_scale: 0.0,
-                depth_bias_clamp: 0.0,
-            }),
-            primitive_topology: wgpu::PrimitiveTopology::PointList,
-            color_states: &[wgpu::ColorStateDescriptor {
-                format: wgpu::TextureFormat::Bgra8UnormSrgb,
-                alpha_blend: wgpu::BlendDescriptor::REPLACE,
-                color_blend: wgpu::BlendDescriptor::REPLACE,
-                write_mask: wgpu::ColorWrite::ALL,
-            }],
-            depth_stencil_state: None,
-            vertex_state: wgpu::VertexStateDescriptor {
-                index_format: wgpu::IndexFormat::Uint16,
-                vertex_buffers: &[wgpu::VertexBufferDescriptor {
-                    stride: std::mem::size_of::<solver::Particle>() as u64,
+                buffers: &[wgpu::VertexBufferLayout {
+                    array_stride: std::mem::size_of::<solver::Particle>() as u64,
                     step_mode: wgpu::InputStepMode::Vertex,
                     attributes: &wgpu::vertex_attr_array![ 0 => Float2 ],
                 }],
             },
-            sample_count: 1,
-            sample_mask: !0,
-            alpha_to_coverage_enabled: false,
+            fragment: Some(wgpu::FragmentState {
+                module: &frag_stage,
+                entry_point: "main",
+                targets: &[wgpu::ColorTargetState {
+                    format: wgpu::TextureFormat::Bgra8UnormSrgb,
+                    alpha_blend: wgpu::BlendState::REPLACE,
+                    color_blend: wgpu::BlendState::REPLACE,
+                    write_mask: wgpu::ColorWrite::ALL,
+                }],
+            }),
+            multisample: wgpu::MultisampleState {
+                count: 1,
+                mask: !0,
+                alpha_to_coverage_enabled: false,
+            },
+            primitive: wgpu::PrimitiveState {
+                topology: wgpu::PrimitiveTopology::PointList,
+                strip_index_format: Some(wgpu::IndexFormat::Uint16),
+                front_face: wgpu::FrontFace::Ccw,
+                cull_mode: wgpu::CullMode::None,
+                polygon_mode: wgpu::PolygonMode::Fill,
+            },
+            depth_stencil: None,
         });
 
         let rt = tokio::runtime::Builder::new_multi_thread()
@@ -151,6 +148,7 @@ impl Engine {
 
         {
             let mut render_pass = encoder.begin_render_pass(&RenderPassDescriptor {
+                label: None,
                 color_attachments: &[RenderPassColorAttachmentDescriptor {
                     attachment: &frame.view,
                     resolve_target: None,
