@@ -1,6 +1,7 @@
 use wgpu::{
-    util::{BufferInitDescriptor, DeviceExt}, CommandEncoderDescriptor, PipelineLayoutDescriptor,
-    RenderPassColorAttachmentDescriptor, RenderPassDescriptor, RenderPipelineDescriptor,
+    util::{BufferInitDescriptor, DeviceExt},
+    CommandEncoderDescriptor, PipelineLayoutDescriptor, RenderPassColorAttachmentDescriptor,
+    RenderPassDescriptor, RenderPipelineDescriptor,
 };
 
 use crate::solver::{self, Solver};
@@ -47,7 +48,7 @@ impl Engine {
             format: wgpu::TextureFormat::Bgra8UnormSrgb,
             width: size.width,
             height: size.height,
-            present_mode: wgpu::PresentMode::Fifo,
+            present_mode: wgpu::PresentMode::Immediate,
         };
         let swap_chain = device.create_swap_chain(&surface, &swap_chain_desc);
 
