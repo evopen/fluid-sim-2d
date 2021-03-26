@@ -1,4 +1,6 @@
 use once_cell::sync::Lazy;
+use rand::prelude::SmallRng;
+use rand::{Rng, SeedableRng};
 use rayon::prelude::*;
 use std::f32::consts::PI;
 
@@ -10,15 +12,15 @@ use crate::{WINDOW_HEIGHT, WINDOW_WIDTH};
 
 const VIEW_WIDTH: f32 = WINDOW_WIDTH as f32 * 1.5;
 const VIEW_HEIGHT: f32 = WINDOW_HEIGHT as f32 * 1.5;
-const REST_DENS: f32 = 1000.0;
-const H: f32 = 20.0;
+const REST_DENS: f32 = 2000.0;
+const H: f32 = 25.0;
 const MASS: f32 = 65.0;
-const GAS_CONST: f32 = 2000.0;
+const GAS_CONST: f32 = 4000.0;
 const SPIKY_GRAD: Lazy<f32> = Lazy::new(|| -45.0 / (std::f32::consts::PI * H.powi(6)));
 const VISC_LAP: Lazy<f32> = Lazy::new(|| 45.0 / (std::f32::consts::PI * H.powi(6)));
 const VISC: f32 = 250.0;
 const G: Vec2 = glam::const_vec2!([0.0, 12000.0 * -9.8]);
-const DT: f32 = 0.0002;
+const DT: f32 = 0.0004;
 const SIGMA_3: f32 = 8.0 / (PI * H * H * H);
 const BOUNDRY_DENSITY: f32 = H / 4.0;
 const BOUNDRY_DEPTH: usize = 3;
@@ -46,6 +48,7 @@ impl Particle {
 
 pub struct Solver {
     pub particles: Vec<Particle>,
+    rng: rand::rngs::SmallRng,
 }
 
 fn cubic_spline(r: f32) -> f32 {
@@ -124,7 +127,43 @@ impl Solver {
             }
         }
 
-        Self { particles }
+        // pipe
+        let pipe_width = 15;
+        let density = BOUNDRY_DENSITY;
+        let depth = BOUNDRY_DEPTH;
+        for y in std::iter::successors(Some(VIEW_HEIGHT / 4.0 * 3.0), |y| Some(y + density))
+            .take(pipe_width)
+        {
+            for x in
+                std::iter::successors(Some(VIEW_WIDTH / 4.0), |x| Some(x - density)).take(depth)
+            {
+                particles.push(Particle::new(Vec2::new(x, y), 0));
+            }
+        }
+        for y in
+            std::iter::successors(Some(VIEW_HEIGHT / 4.0 * 3.0), |y| Some(y - density)).take(depth)
+        {
+            for x in std::iter::successors(Some(VIEW_WIDTH / 4.0), |x| Some(x + density)).take(100)
+            {
+                particles.push(Particle::new(Vec2::new(x, y), 0));
+            }
+        }
+        for y in std::iter::successors(
+            Some(VIEW_HEIGHT / 4.0 * 3.0 + density * pipe_width as f32),
+            |y| Some(y + density),
+        )
+        .take(depth)
+        {
+            for x in std::iter::successors(Some(VIEW_WIDTH / 4.0), |x| Some(x + density)).take(100)
+            {
+                particles.push(Particle::new(Vec2::new(x, y), 0));
+            }
+        }
+
+        Self {
+            particles,
+            rng: SmallRng::from_entropy(),
+        }
     }
 
     fn compute_density_pressure(&mut self) {
@@ -214,5 +253,12 @@ impl Solver {
         self.compute_density_pressure();
         self.compute_forces();
         self.integrate();
+        self.particles.push(Particle::new(
+            Vec2::new(
+                VIEW_WIDTH / 4.0 + self.rng.gen_range(10.0..200.0),
+                VIEW_HEIGHT / 4.0 * 3.0 + self.rng.gen_range(20.0..100.0),
+            ),
+            1,
+        ));
     }
 }

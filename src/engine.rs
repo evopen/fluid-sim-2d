@@ -108,10 +108,11 @@ impl Engine {
 
         let sph_solver = Solver::new(500);
 
-        let particle_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        let particle_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Particle buffer"),
-            contents: bytemuck::cast_slice(&sph_solver.particles),
             usage: wgpu::BufferUsage::VERTEX | wgpu::BufferUsage::COPY_DST,
+            size: std::mem::size_of_val(&*sph_solver.particles) as u64 * 3,
+            mapped_at_creation: false,
         });
 
         Self {
